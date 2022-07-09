@@ -1,0 +1,65 @@
+{
+  "name": "ipfs-editor",
+  "version": "0.0.0",
+  "description": "",
+  "author": "Gerald <gera2ld@live.com>",
+  "license": "MIT",
+  "displayName": "IPFS Editor",
+  "publisher": "gera2ld",
+  "engines": {
+    "vscode": "^1.58.0"
+  },
+  "scripts": {
+    "ci": "run-s lint",
+    "lint": "eslint --ext .ts,tsx src",
+    "dev": "rollup -wc rollup.conf.js",
+    "clean": "del-cli dist types",
+    "build:js": "cross-env NODE_ENV=production rollup -c rollup.conf.js",
+    "build": "run-s ci clean build:js",
+    "prepare": "husky install",
+    "prepublishOnly": "run-s build",
+    "build:types": "tsc -p tsconfig.prod.json"
+  },
+  "main": "dist/index.common.js",
+  "files": [
+    "dist",
+    "types"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "typings": "types/index.d.ts",
+  "activationEvents": [
+    "onFileSystem:ipfs",
+    "onCommand:ipfs.open"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "ipfs.open",
+        "title": "Open IPFS",
+        "category": "IPFS"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "ipfs.open"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.3",
+    "ipfs-core": "^0.15.4"
+  },
+  "devDependencies": {
+    "@gera2ld/plaid": "~2.5.5",
+    "@gera2ld/plaid-common-ts": "~2.5.1",
+    "@gera2ld/plaid-rollup": "~2.5.6-alpha.0",
+    "@types/vscode": "~1.58.0",
+    "del-cli": "^4.0.1",
+    "husky": "^8.0.1"
+  }
+}
