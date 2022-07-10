@@ -61,16 +61,10 @@ export class IPFSProvider implements vscode.FileSystemProvider {
       if (ipfsPath) await this.ipfs.files.cp(ipfsPath, this.root + '/file');
     }
     const rootUri = vscode.Uri.parse('ipfs:' + this.root);
-    this._fireSoon(
-      {
-        type: vscode.FileChangeType.Deleted,
-        uri: rootUri,
-      },
-      {
-        type: vscode.FileChangeType.Created,
-        uri: rootUri,
-      }
-    );
+    this._fireSoon({
+      type: vscode.FileChangeType.Changed,
+      uri: rootUri,
+    });
     return this.getRootCid();
   }
 
