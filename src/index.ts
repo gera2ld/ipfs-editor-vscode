@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const rootCid = await ipfsProvider.openFileOrDirectory(ipfsPath);
       vscode.workspace.updateWorkspaceFolders(
         0,
-        vscode.workspace.workspaceFolders.length,
+        vscode.workspace.workspaceFolders?.length ?? 0,
         {
           uri: vscode.Uri.parse('ipfs:/root'),
           name: `IPFS - ${rootCid}`,
