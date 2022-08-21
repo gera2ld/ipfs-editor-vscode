@@ -5,13 +5,19 @@ let ipfsProvider: IPFSProvider;
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = vscode.window.createOutputChannel('IPFS');
-  logger.appendLine(`${vscode.Uri.parse('ipfs:/')}`);
 
-  ipfsProvider = IPFSProvider.create(
-    {
-      url: 'http://127.0.0.1:5001',
-    },
-    { logger }
+  ipfsProvider = new IPFSProvider({ logger });
+  const updateEndpoint = () => {
+    const endpoint = vscode.workspace
+      .getConfiguration('ipfs')
+      .get<string>('endpoint');
+    ipfsProvider.setEndpoint(endpoint);
+  };
+  updateEndpoint();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('ipfs.endpoint')) updateEndpoint();
+    })
   );
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider('ipfs', ipfsProvider, {
@@ -20,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('ipfs.open', async (_) => {
+    vscode.commands.registerCommand('ipfs.import', async (_) => {
       const ipfsPath = await vscode.window.showInputBox({
         title:
           'Please input an IPFS path (CID or /ipfs/CID or /ipns/hostname):',
@@ -30,13 +36,41 @@ export async function activate(context: vscode.ExtensionContext) {
         },
       });
       if (!ipfsPath) return;
-      const rootCid = await ipfsProvider.openFileOrDirectory(ipfsPath);
+      const dirname = await ipfsProvider.importFileOrDirectory(ipfsPath);
       vscode.workspace.updateWorkspaceFolders(
         0,
         vscode.workspace.workspaceFolders?.length ?? 0,
         {
-          uri: vscode.Uri.parse('ipfs:/root'),
-          name: `IPFS - ${rootCid}`,
+          uri: vscode.Uri.parse(`ipfs:${dirname}`),
+          name: `IPFS - ${dirname}`,
+        }
+      );
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ipfs.open', async (_) => {
+      const dirname = await vscode.window.showInputBox({
+        title: 'Please input file path in IPFS:',
+        value: '/',
+        async validateInput(value) {
+          if (!value.startsWith('/')) return 'File path must starts with `/`';
+          try {
+            const uri = vscode.Uri.parse(`ipfs:${value}`);
+            await ipfsProvider.stat(uri);
+          } catch (err) {
+            if (err instanceof vscode.FileSystemError.FileNotFound) {
+              return 'Path not found in IPFS';
+            }
+            return `${err}`;
+          }
+        },
+      });
+      vscode.workspace.updateWorkspaceFolders(
+        0,
+        vscode.workspace.workspaceFolders?.length ?? 0,
+        {
+          uri: vscode.Uri.parse(`ipfs:${dirname}`),
+          name: `IPFS - ${dirname}`,
         }
       );
     })

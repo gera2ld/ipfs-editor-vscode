@@ -1,7 +1,7 @@
 {
   "name": "ipfs-editor",
   "version": "0.0.0",
-  "description": "",
+  "description": "IPFS Editor for VSCode",
   "author": "Gerald <gera2ld@live.com>",
   "license": "MIT",
   "displayName": "IPFS Editor",
@@ -32,10 +32,16 @@
   "typings": "types/index.d.ts",
   "activationEvents": [
     "onFileSystem:ipfs",
+    "onCommand:ipfs.import",
     "onCommand:ipfs.open"
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "ipfs.import",
+        "title": "Import from IPFS Path",
+        "category": "IPFS"
+      },
       {
         "command": "ipfs.open",
         "title": "Open IPFS",
@@ -46,8 +52,21 @@
       "commandPalette": [
         {
           "command": "ipfs.open"
+        },
+        {
+          "command": "ipfs.import"
         }
       ]
+    },
+    "configuration": {
+      "title": "IPFS Editor",
+      "properties": {
+        "ipfs.endpoint": {
+          "type": "string",
+          "default": "http://127.0.0.1:5001",
+          "markdownDescription": "Endpoint of the IPFS node"
+        }
+      }
     }
   },
   "dependencies": {

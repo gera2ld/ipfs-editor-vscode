@@ -1,4 +1,4 @@
-import { IPFSHTTPClient, Options, create } from 'ipfs-http-client';
+import { IPFSHTTPClient, create } from 'ipfs-http-client';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -6,76 +6,77 @@ export interface Entry extends vscode.FileStat {
   name: string;
 }
 
-export class IPFSProvider implements vscode.FileSystemProvider {
-  private root: string;
+function noop<T>(): T | undefined {
+  return;
+}
 
+export class IPFSProvider implements vscode.FileSystemProvider {
   private logger?: vscode.OutputChannel;
 
-  static create(
-    ipfsOpts: Options,
-    providerOpts?: {
-      root?: string;
-      logger?: vscode.OutputChannel;
-    }
-  ) {
-    const ipfs = create(ipfsOpts);
-    return new IPFSProvider(ipfs, providerOpts);
+  ipfs: IPFSHTTPClient;
+
+  constructor(providerOpts?: {
+    endpoint?: string;
+    logger?: vscode.OutputChannel;
+  }) {
+    this.logger = providerOpts?.logger;
+    this.setEndpoint(providerOpts?.endpoint);
   }
 
-  constructor(
-    private ipfs: IPFSHTTPClient,
-    providerOpts?: {
-      root?: string;
-      logger?: vscode.OutputChannel;
-    }
-  ) {
-    this.root = providerOpts?.root ?? '/root';
-    this.logger = providerOpts?.logger;
+  setEndpoint(url: string) {
+    this.ipfs = url && create({ url });
   }
 
   async close() {
-    await this.resetRoot();
     this.ipfs = null;
   }
 
-  private async resetRoot() {
-    try {
-      this.logger.appendLine('remove');
-      await this.ipfs.files.rm(this.root, { recursive: true });
-    } catch (err) {
-      this.logger.appendLine('remove error: ' + err);
-    }
-  }
-
-  async openFileOrDirectory(ipfsPath?: string) {
+  async importFileOrDirectory(ipfsPath?: string) {
     if (ipfsPath) ipfsPath = await this.ipfs.resolve(ipfsPath);
-    await this.resetRoot();
-    const stat = ipfsPath && (await this.ipfs.files.stat(ipfsPath));
-    this.logger.appendLine(ipfsPath);
-    if (stat?.type === 'directory') {
+    if (!ipfsPath) return;
+    this.logger.appendLine('ipfsPath: ' + ipfsPath);
+    const stat = await this.ipfs.files.stat(ipfsPath);
+    if (!stat) return;
+    const dateStr = new Date().toISOString().split('T')[0];
+    let idx = 0;
+    const prefix = '/vscode-imports/';
+    let dirname = prefix + dateStr;
+    while (await this.ipfs.files.stat(dirname).catch(noop)) {
+      idx += 1;
+      dirname = `${prefix}${dateStr}_${idx}`;
+    }
+    if (stat.type === 'directory') {
       this.logger.appendLine('directory');
-      await this.ipfs.files.cp(ipfsPath, this.root);
+      await this.ipfs.files.cp(ipfsPath, dirname, { cidVersion: 1 });
     } else {
       this.logger.appendLine('file');
-      await this.ipfs.files.mkdir(this.root);
-      if (ipfsPath) await this.ipfs.files.cp(ipfsPath, this.root + '/file');
+      await this.ipfs.files.mkdir(dirname, { parents: true, cidVersion: 1 });
+      await this.ipfs.files.cp(ipfsPath, `${dirname}/file`, { cidVersion: 1 });
     }
-    const rootUri = vscode.Uri.parse('ipfs:' + this.root);
-    this._fireSoon({
-      type: vscode.FileChangeType.Changed,
-      uri: rootUri,
-    });
-    return this.getRootCid();
+    return dirname;
   }
 
-  async getRootCid() {
-    const stat = await this.ipfs.files.stat(this.root);
-    return stat.cid.toString();
-  }
-
-  stat(uri: vscode.Uri) {
+  async stat(uri: vscode.Uri) {
     this.logger.appendLine('stat ' + uri);
-    return this._lookup(uri, false);
+    const filePath = uri.path;
+    try {
+      const stat = await this.ipfs.files.stat(filePath);
+      return {
+        type:
+          stat.type === 'directory'
+            ? vscode.FileType.Directory
+            : vscode.FileType.File,
+        ctime: Date.now(),
+        mtime: Date.now(),
+        size: stat.size,
+        name: path.basename(filePath),
+      };
+    } catch (err) {
+      if (err?.code === 'ERR_NOT_FOUND') {
+        throw vscode.FileSystemError.FileNotFound(uri);
+      }
+      throw err;
+    }
   }
 
   async readDirectory(uri: vscode.Uri) {
@@ -106,6 +107,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
 
   async readFile(uri: vscode.Uri) {
     const fullPath = uri.path;
+    this.logger.appendLine('readFile ' + fullPath);
     try {
       const buffer = [];
       for await (const chunk of this.ipfs.files.read(fullPath)) {
@@ -126,7 +128,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     options: { create: boolean; overwrite: boolean }
   ) {
     const fullPath = uri.path;
-    const entry = await this._lookup(uri, true);
+    const entry = await this.stat(uri).catch<Entry>(noop);
     if (entry?.type === vscode.FileType.Directory) {
       throw vscode.FileSystemError.FileIsADirectory(uri);
     }
@@ -136,6 +138,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     try {
       await this.ipfs.files.write(fullPath, content, {
         create: options.create,
+        cidVersion: 1,
       });
     } catch (err) {
       if (err?.code === 'ERR_NO_EXIST') {
@@ -153,12 +156,12 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     newUri: vscode.Uri,
     options: { overwrite: boolean }
   ) {
-    if (!options.overwrite && (await this._lookup(newUri, true))) {
+    if (!options.overwrite && (await this.stat(newUri).catch<Entry>(noop))) {
       throw vscode.FileSystemError.FileExists(newUri);
     }
     const oldPath = oldUri.path;
     const newPath = newUri.path;
-    await this.ipfs.files.mv(oldPath, newPath);
+    await this.ipfs.files.mv(oldPath, newPath, { cidVersion: 1 });
 
     this._fireSoon(
       { type: vscode.FileChangeType.Deleted, uri: oldUri },
@@ -179,37 +182,11 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   async createDirectory(uri: vscode.Uri) {
     const dirname = uri.with({ path: path.posix.dirname(uri.path) });
     const fullPath = uri.path;
-    await this.ipfs.files.mkdir(fullPath);
+    await this.ipfs.files.mkdir(fullPath, { cidVersion: 1 });
     this._fireSoon(
       { type: vscode.FileChangeType.Changed, uri: dirname },
       { type: vscode.FileChangeType.Created, uri }
     );
-  }
-
-  private async _lookup(
-    uri: vscode.Uri,
-    silent = false
-  ): Promise<Entry | undefined> {
-    const fullPath = uri.path;
-    try {
-      const name = path.basename(uri.path);
-      const stat = await this.ipfs.files.stat(fullPath);
-      return {
-        type:
-          stat.type === 'directory'
-            ? vscode.FileType.Directory
-            : vscode.FileType.File,
-        ctime: Date.now(),
-        mtime: Date.now(),
-        size: stat.size,
-        name,
-      };
-    } catch (err) {
-      if (err?.code !== 'ERR_NOT_FOUND') throw err;
-      if (!silent) {
-        throw vscode.FileSystemError.FileNotFound(uri);
-      }
-    }
   }
 
   private _emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
