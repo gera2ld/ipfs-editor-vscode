@@ -4,7 +4,7 @@
   "description": "IPFS Editor for VSCode",
   "author": "Gerald <gera2ld@live.com>",
   "license": "MIT",
-  "icon": "src/icon.png",
+  "icon": "src/ipfs.png",
   "displayName": "IPFS Editor",
   "publisher": "gera2ld",
   "engines": {
@@ -17,12 +17,11 @@
     "clean": "del-cli dist types",
     "build:js": "cross-env NODE_ENV=production rollup -c rollup.conf.js",
     "build": "run-s ci clean build:js",
-    "prepare": "husky install",
-    "prepublishOnly": "run-s build",
-    "build:types": "tsc -p tsconfig.prod.json"
+    "prepare": "husky install"
   },
   "main": "dist/index.node.js",
   "browser": "dist/index.browser.js",
+  "repository": "https://github.com/gera2ld/ipfs-editor-vscode",
   "files": [
     "dist",
     "types"

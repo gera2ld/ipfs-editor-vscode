@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-node@v2
         with:
           node-version: '16'
-      - name: Install deps
-        run: yarn
+      - name: Prepare
+        run: yarn && yarn build
       - name: Publish to VSCE
         run: npx vsce publish -p $VSCE_TOKEN
         env:
