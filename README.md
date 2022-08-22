@@ -4,13 +4,14 @@ The is a VSCode extension to load and edit files on IPFS.
 
 ## Features
 
-- [x] Load file/directory by CID
-- [x] Load file/directory by IPNS
-- [ ] Edit/save file
-- [ ] Upload new CAR to web3.storage
-- [ ] Update DNSLink
+- [x] Import file/directory by CID
+- [x] Import file/directory by IPNS
+- [x] Edit/save file
+- [x] Upload new CAR to web3.storage
+- [x] Publish with DNSLink
 
 ## Usage
 
-- Open command palette and search `IPFS`, execute `Open IPFS`
-- Input a CID / IPFS path / IPNS path to a file or directory
+- Open command palette and search `IPFS`
+- Edit files like in local file system
+- Upload and publish new changes with a click
