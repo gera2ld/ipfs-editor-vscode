@@ -1,9 +1,25 @@
+import { getDomain } from 'tldjs';
 import { IPFSHTTPClient, create } from 'ipfs-http-client';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import fetch from 'node-fetch';
+import { updateDNSLink as updateDNSLinkCloudflare } from './dnslink/cloudflare';
+
+const dnsLinkProviders: Record<
+  string,
+  (hostname: string, ipfsPath: string, config: unknown) => Promise<void>
+> = {
+  cloudflare: updateDNSLinkCloudflare,
+};
 
 export interface Entry extends vscode.FileStat {
   name: string;
+}
+
+export interface IPFSProviderConfig {
+  web3StorageToken?: string;
+  dnsConfig?: Record<string, unknown>;
+  domainProvider?: Record<string, string>;
 }
 
 function noop<T>(): T | undefined {
@@ -15,16 +31,28 @@ export class IPFSProvider implements vscode.FileSystemProvider {
 
   ipfs: IPFSHTTPClient;
 
+  private config: IPFSProviderConfig;
+
   constructor(providerOpts?: {
     endpoint?: string;
     logger?: vscode.OutputChannel;
+    config?: IPFSProviderConfig;
   }) {
     this.logger = providerOpts?.logger;
     this.setEndpoint(providerOpts?.endpoint);
+    this.setConfig(providerOpts?.config || {});
   }
 
   setEndpoint(url: string) {
     this.ipfs = url && create({ url });
+  }
+
+  setConfig(config: IPFSProviderConfig) {
+    this.config = config;
+  }
+
+  private log(line: string) {
+    this.logger?.appendLine(line);
   }
 
   async close() {
@@ -34,7 +62,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   async importFileOrDirectory(ipfsPath?: string) {
     if (ipfsPath) ipfsPath = await this.ipfs.resolve(ipfsPath);
     if (!ipfsPath) return;
-    this.logger.appendLine('ipfsPath: ' + ipfsPath);
+    this.log('Import ipfsPath: ' + ipfsPath);
     const stat = await this.ipfs.files.stat(ipfsPath);
     if (!stat) return;
     const dateStr = new Date().toISOString().split('T')[0];
@@ -46,10 +74,10 @@ export class IPFSProvider implements vscode.FileSystemProvider {
       dirname = `${prefix}${dateStr}_${idx}`;
     }
     if (stat.type === 'directory') {
-      this.logger.appendLine('directory');
+      this.log('Found directory');
       await this.ipfs.files.cp(ipfsPath, dirname, { cidVersion: 1 });
     } else {
-      this.logger.appendLine('file');
+      this.log('Found file');
       await this.ipfs.files.mkdir(dirname, { parents: true, cidVersion: 1 });
       await this.ipfs.files.cp(ipfsPath, `${dirname}/file`, { cidVersion: 1 });
     }
@@ -57,7 +85,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   }
 
   async stat(uri: vscode.Uri) {
-    this.logger.appendLine('stat ' + uri);
+    this.log('stat ' + uri);
     const filePath = uri.path;
     try {
       const stat = await this.ipfs.files.stat(filePath);
@@ -81,22 +109,19 @@ export class IPFSProvider implements vscode.FileSystemProvider {
 
   async getCid(uri: vscode.Uri) {
     const stat = await this.ipfs.files.stat(uri.path);
-    return stat.cid.toString();
+    return stat.cid;
   }
 
   async readDirectory(uri: vscode.Uri) {
-    this.logger.appendLine('readDir ' + uri);
+    this.log('readDir ' + uri);
     const fullPath = uri.path;
-    const items: Array<[name: string, type: vscode.FileType]> = [];
-    for await (const item of this.ipfs.files.ls(fullPath)) {
-      items.push([
-        item.name,
-        item.type === 'directory'
-          ? vscode.FileType.Directory
-          : vscode.FileType.File,
-      ]);
-    }
-    return items;
+    const items = await arrayFromAsync(this.ipfs.files.ls(fullPath));
+    return items.map((item) => [
+      item.name,
+      item.type === 'directory'
+        ? vscode.FileType.Directory
+        : vscode.FileType.File,
+    ]) as Array<[name: string, type: vscode.FileType]>;
   }
 
   private mergeUint8Array(arrays: Uint8Array[]) {
@@ -112,12 +137,9 @@ export class IPFSProvider implements vscode.FileSystemProvider {
 
   async readFile(uri: vscode.Uri) {
     const fullPath = uri.path;
-    this.logger.appendLine('readFile ' + fullPath);
+    this.log('readFile ' + fullPath);
     try {
-      const buffer = [];
-      for await (const chunk of this.ipfs.files.read(fullPath)) {
-        buffer.push(chunk);
-      }
+      const buffer = await arrayFromAsync(this.ipfs.files.read(fullPath));
       return this.mergeUint8Array(buffer);
     } catch (err) {
       if (err?.code === 'ERR_NOT_FOUND') {
@@ -194,6 +216,114 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     );
   }
 
+  async exportCar(uri: vscode.Uri) {
+    const cid = await this.getCid(uri);
+    const chunks = await arrayFromAsync(this.ipfs.dag.export(cid));
+    return this.mergeUint8Array(chunks);
+  }
+
+  async uploadToWeb3Storage(uri: vscode.Uri) {
+    const token = this.config.web3StorageToken;
+    if (!token) throw new Error('Web3Storage token is required!');
+    this.log('Uploading ' + uri);
+    const name = uri.path.split('/').pop();
+    const car = await this.exportCar(uri);
+    const res = await fetch('https://api.web3.storage/car', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-name': name,
+      },
+      body: car,
+    });
+    const data = await res.json();
+    if (!res.ok) throw { status: res.status, data };
+    this.log('Uploaded ' + uri);
+    return data;
+  }
+
+  async findCnames(uri: vscode.Uri, recursive = false) {
+    const results: Record<string, string> = {};
+
+    const addCname = async (cid: string, cnamePath: string) => {
+      const chunks = await arrayFromAsync(this.ipfs.files.read(cnamePath));
+      const bin = this.mergeUint8Array(chunks);
+      const text = new TextDecoder().decode(bin);
+      const domains = text
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      domains.forEach((domain) => {
+        results[domain] = cid;
+      });
+    };
+
+    const checkFile = async (path: string) => {
+      const statRes = await this.ipfs.files.stat(path);
+
+      // handle file
+      if (statRes.type === 'file') {
+        try {
+          await this.ipfs.files.stat(`${path}.CNAME`);
+          await addCname(statRes.cid.toString(), `${path}.CNAME`);
+        } catch {
+          // noop
+        }
+        return;
+      }
+
+      // handle directory
+      const items = await arrayFromAsync(this.ipfs.files.ls(path));
+      const files = items.filter((item) => item.type === 'file');
+      if (files.find((item) => item.name === 'CNAME')) {
+        await addCname(statRes.cid.toString(), `${path}/CNAME`);
+      }
+
+      if (!recursive) return;
+
+      // files inside directory
+      const cnames = files.filter((item) => item.name.endsWith('.CNAME'));
+      for (const cname of cnames) {
+        const filename = cname.name.slice(0, -6);
+        const file = files.find((item) => item.name === filename);
+        if (file) await addCname(file.cid.toString(), `${path}/${cname.name}`);
+      }
+
+      // nested directories
+      const dirs = items.filter((item) => item.type === 'directory');
+      for (const dir of dirs) {
+        await checkFile(`${path}/${dir.name}`);
+      }
+    };
+
+    await checkFile(uri.path);
+    return results;
+  }
+
+  async publish(
+    uri: vscode.Uri,
+    opts: { recursive?: boolean; upload?: boolean } = {}
+  ) {
+    if (opts.upload) {
+      await this.uploadToWeb3Storage(uri);
+    }
+    const cnames = await this.findCnames(uri, opts.recursive);
+    this.log('Found cnames: ' + JSON.stringify(cnames, null, 2));
+    const result: string[] = [];
+    for (const [cname, cid] of Object.entries(cnames)) {
+      const domain: string = getDomain(cname);
+      const provider = this.config.domainProvider?.[domain];
+      const config = this.config.dnsConfig?.[provider];
+      const update = dnsLinkProviders[provider];
+      if (config && update) {
+        this.log('Update DNS: ' + cname);
+        await update(cname, `/ipfs/${cid}`, config);
+        result.push(cname);
+      }
+    }
+    return result;
+  }
+
   private _emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   private _bufferedEvents: vscode.FileChangeEvent[] = [];
   private _fireSoonHandle?: NodeJS.Timer;
@@ -220,4 +350,12 @@ export class IPFSProvider implements vscode.FileSystemProvider {
       this._bufferedEvents.length = 0;
     }, 5);
   }
+}
+
+async function arrayFromAsync<T>(iter: AsyncIterable<T>): Promise<T[]> {
+  const result: T[] = [];
+  for await (const item of iter) {
+    result.push(item);
+  }
+  return result;
 }

@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('ipfs.copyCid', async (uri: vscode.Uri) => {
       const cid = await ipfsProvider.getCid(uri);
-      await vscode.env.clipboard.writeText(cid);
+      await vscode.env.clipboard.writeText(cid.toString());
       vscode.window.showInformationMessage(`Copied IPFS CID: ${cid}`);
     })
   );
@@ -90,6 +90,60 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage(`Copied IPFS URL: ${url}`);
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'ipfs.uploadToWeb3Storage',
+      handleError(async (uri: vscode.Uri) => {
+        updateConfig();
+        await ipfsProvider.uploadToWeb3Storage(uri);
+        vscode.window.showInformationMessage(`Uploaded: ${uri.path}`);
+      })
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'ipfs.publish',
+      handleError(async (uri: vscode.Uri) => {
+        await publish(uri);
+      })
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'ipfs.publishUnder',
+      handleError(async (uri: vscode.Uri) => {
+        await publish(uri, { recursive: true });
+      })
+    )
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'ipfs.uploadAndPublishUnder',
+      handleError(async (uri: vscode.Uri) => {
+        await publish(uri, { recursive: true, upload: true });
+      })
+    )
+  );
+
+  function updateConfig() {
+    const configStr = vscode.workspace
+      .getConfiguration('ipfs')
+      .get<string>('publishConfig');
+    try {
+      const config = JSON.parse(configStr);
+      ipfsProvider.setConfig(config);
+    } catch {
+      // noop
+    }
+  }
+  async function publish(
+    uri: vscode.Uri,
+    opts: { recursive?: boolean; upload?: boolean } = {}
+  ) {
+    updateConfig();
+    const result = await ipfsProvider.publish(uri, opts);
+    vscode.window.showInformationMessage(`Published: ${result.join(', ')}`);
+  }
 }
 
 export async function deactivate() {
@@ -97,4 +151,16 @@ export async function deactivate() {
     await ipfsProvider.close();
     ipfsProvider = null;
   }
+}
+
+function handleError<T extends unknown[], U>(
+  fn: (...args: T) => Promise<U>
+): (...args: T) => Promise<U> {
+  return async (...args: T) => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      vscode.window.showErrorMessage(`${err}`);
+    }
+  };
 }
