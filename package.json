@@ -1,5 +1,5 @@
 {
-  "name": "ipfs-editor",
+  "name": "ipfs-editor-vscode",
   "version": "0.0.0",
   "description": "IPFS Editor for VSCode",
   "author": "Gerald <gera2ld@live.com>",
@@ -20,7 +20,8 @@
     "prepublishOnly": "run-s build",
     "build:types": "tsc -p tsconfig.prod.json"
   },
-  "main": "dist/index.common.js",
+  "main": "dist/index.node.js",
+  "browser": "dist/index.browser.js",
   "files": [
     "dist",
     "types"
@@ -147,7 +148,8 @@
     "@babel/runtime": "^7.18.9",
     "ipfs-core": "^0.15.4",
     "node-fetch": "^2.6.7",
-    "tldjs": "^2.3.1"
+    "tldjs": "^2.3.1",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@gera2ld/plaid": "~2.5.6",

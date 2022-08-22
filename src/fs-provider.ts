@@ -1,8 +1,7 @@
-import { getDomain } from 'tldjs';
 import { IPFSHTTPClient, create } from 'ipfs-http-client';
-import * as path from 'path';
 import * as vscode from 'vscode';
-import fetch from 'node-fetch';
+import { Utils } from 'vscode-uri';
+import { fetch, getDomain } from './deps';
 import { updateDNSLink as updateDNSLinkCloudflare } from './dnslink/cloudflare';
 
 const dnsLinkProviders: Record<
@@ -97,7 +96,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
         ctime: Date.now(),
         mtime: Date.now(),
         size: stat.size,
-        name: path.basename(filePath),
+        name: Utils.basename(uri),
       };
     } catch (err) {
       if (err?.code === 'ERR_NOT_FOUND') {
@@ -197,7 +196,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   }
 
   async delete(uri: vscode.Uri) {
-    const dirname = uri.with({ path: path.posix.dirname(uri.path) });
+    const dirname = Utils.dirname(uri);
     const fullPath = uri.path;
     await this.ipfs.files.rm(fullPath, { recursive: true });
     this._fireSoon(
@@ -207,7 +206,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   }
 
   async createDirectory(uri: vscode.Uri) {
-    const dirname = uri.with({ path: path.posix.dirname(uri.path) });
+    const dirname = Utils.dirname(uri);
     const fullPath = uri.path;
     await this.ipfs.files.mkdir(fullPath, { cidVersion: 1 });
     this._fireSoon(
@@ -226,7 +225,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     const token = this.config.web3StorageToken;
     if (!token) throw new Error('Web3Storage token is required!');
     this.log('Uploading ' + uri);
-    const name = uri.path.split('/').pop();
+    const name = Utils.basename(uri);
     const car = await this.exportCar(uri);
     const res = await fetch('https://api.web3.storage/car', {
       method: 'POST',

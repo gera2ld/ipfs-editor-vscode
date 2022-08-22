@@ -14,7 +14,6 @@ const BANNER = `/*! ${pkg.name} v${pkg.version} | ${pkg.license} License */`;
 const external = getRollupExternal([
   'path',
   'vscode',
-  'tldjs',
   'node-fetch',
 ]);
 const bundleOptions = {
@@ -48,7 +47,31 @@ const rollupConfig = [
     },
     output: {
       format: 'cjs',
-      file: `${DIST}/${FILENAME}.common.js`,
+      file: `${DIST}/${FILENAME}.node.js`,
+    },
+  },
+  {
+    input: {
+      input: 'src/index.ts',
+      plugins: getRollupPlugins({
+        extensions: defaultOptions.extensions,
+        postcss: postcssOptions,
+        replaceValues: {
+          'process.versions.electron': '""',
+        },
+        minimize: false,
+        aliases: {
+          entries: [
+            { find: /^ipfs-http-client$/, replacement: 'node_modules/ipfs-http-client/dist/index.min.js' },
+            { find: path.resolve('src/deps/index.ts'), replacement: path.resolve('src/deps/browser.ts') },
+          ],
+        },
+      }),
+      external,
+    },
+    output: {
+      format: 'cjs',
+      file: `${DIST}/${FILENAME}.browser.js`,
     },
   },
 ];

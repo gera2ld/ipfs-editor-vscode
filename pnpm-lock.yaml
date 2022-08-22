@@ -11,12 +11,14 @@ specifiers:
   ipfs-core: ^0.15.4
   node-fetch: ^2.6.7
   tldjs: ^2.3.1
+  vscode-uri: ^3.0.3
 
 dependencies:
   '@babel/runtime': 7.18.9
   ipfs-core: 0.15.4_node-fetch@2.6.7
   node-fetch: 2.6.7
   tldjs: 2.3.1
+  vscode-uri: 3.0.3
 
 devDependencies:
   '@gera2ld/plaid': 2.5.6
@@ -7467,6 +7469,10 @@ packages:
 
   /varint/6.0.0:
     resolution: {integrity: sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg==}
+    dev: false
+
+  /vscode-uri/3.0.3:
+    resolution: {integrity: sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==}
     dev: false
 
   /webidl-conversions/3.0.1:

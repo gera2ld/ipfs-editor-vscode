@@ -1,5 +1,4 @@
-import { getDomain } from 'tldjs';
-import fetch from 'node-fetch';
+import { fetch, getDomain } from '../deps';
 
 interface CloudflareConfig {
   token: string;
