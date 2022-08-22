@@ -4,6 +4,7 @@
   "description": "IPFS Editor for VSCode",
   "author": "Gerald <gera2ld@live.com>",
   "license": "MIT",
+  "icon": "src/icon.png",
   "displayName": "IPFS Editor",
   "publisher": "gera2ld",
   "engines": {
