@@ -18,10 +18,12 @@ jobs:
       - name: Prepare
         run: yarn && yarn build
       - name: Publish to VSCE
+        continue-on-error: true
         run: npx vsce publish -p $VSCE_TOKEN
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
       - name: Publish to Open VSX
+        continue-on-error: true
         run: npx ovsx publish -p $OVSX_TOKEN
         env:
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
