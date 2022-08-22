@@ -46,6 +46,16 @@
         "command": "ipfs.open",
         "title": "Open IPFS",
         "category": "IPFS"
+      },
+      {
+        "command": "ipfs.copyCid",
+        "title": "Copy IPFS CID",
+        "category": "IPFS"
+      },
+      {
+        "command": "ipfs.copyUrl",
+        "title": "Copy IPFS URL",
+        "category": "IPFS"
       }
     ],
     "menus": {
@@ -55,6 +65,18 @@
         },
         {
           "command": "ipfs.import"
+        }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceScheme == ipfs",
+          "command": "ipfs.copyCid",
+          "group": "6_copypath"
+        },
+        {
+          "when": "resourceScheme == ipfs",
+          "command": "ipfs.copyUrl",
+          "group": "6_copypath"
         }
       ]
     },

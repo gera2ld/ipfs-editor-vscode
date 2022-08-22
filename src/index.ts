@@ -75,6 +75,21 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ipfs.copyCid', async (uri: vscode.Uri) => {
+      const cid = await ipfsProvider.getCid(uri);
+      await vscode.env.clipboard.writeText(cid);
+      vscode.window.showInformationMessage(`Copied IPFS CID: ${cid}`);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ipfs.copyUrl', async (uri: vscode.Uri) => {
+      const cid = await ipfsProvider.getCid(uri);
+      const url = `https://dweb.link/ipfs/${cid}`;
+      await vscode.env.clipboard.writeText(url);
+      vscode.window.showInformationMessage(`Copied IPFS URL: ${url}`);
+    })
+  );
 }
 
 export async function deactivate() {

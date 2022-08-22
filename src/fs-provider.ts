@@ -79,6 +79,11 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     }
   }
 
+  async getCid(uri: vscode.Uri) {
+    const stat = await this.ipfs.files.stat(uri.path);
+    return stat.cid.toString();
+  }
+
   async readDirectory(uri: vscode.Uri) {
     this.logger.appendLine('readDir ' + uri);
     const fullPath = uri.path;
