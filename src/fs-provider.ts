@@ -43,6 +43,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   }
 
   setEndpoint(url: string) {
+    this.log(`Endpoint: ${url}`);
     this.ipfs = url && create({ url });
   }
 
@@ -99,7 +100,8 @@ export class IPFSProvider implements vscode.FileSystemProvider {
         name: Utils.basename(uri),
       };
     } catch (err) {
-      if (err?.code === 'ERR_NOT_FOUND') {
+      this.log(`Error ${err.name}/${err.code}/${err.message}`);
+      if (err?.code === 'ERR_NOT_FOUND' || err?.message === 'file does not exist') {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
       throw err;
@@ -161,10 +163,12 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     if (!options.overwrite && entry) {
       throw vscode.FileSystemError.FileExists(uri);
     }
+    this.log('writeFile ' + fullPath);
     try {
       await this.ipfs.files.write(fullPath, content, {
-        create: options.create,
         cidVersion: 1,
+        create: options.create,
+        truncate: true,
       });
     } catch (err) {
       if (err?.code === 'ERR_NO_EXIST') {

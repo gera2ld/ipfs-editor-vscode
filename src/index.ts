@@ -48,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
   context.subscriptions.push(
-    vscode.commands.registerCommand('ipfs.open', async (_) => {
+    vscode.commands.registerCommand('ipfs.open', handleError(async (_) => {
       const dirname = await vscode.window.showInputBox({
         title: 'Please input file path in IPFS:',
         value: '/',
@@ -58,6 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const uri = vscode.Uri.parse(`ipfs:${value}`);
             await ipfsProvider.stat(uri);
           } catch (err) {
+            logger.appendLine(`${err}`);
             if (err instanceof vscode.FileSystemError.FileNotFound) {
               return 'Path not found in IPFS';
             }
@@ -65,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
           }
         },
       });
+      if (!dirname) return;
       vscode.workspace.updateWorkspaceFolders(
         0,
         vscode.workspace.workspaceFolders?.length ?? 0,
@@ -73,7 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
           name: `IPFS - ${dirname}`,
         }
       );
-    })
+    }))
   );
   context.subscriptions.push(
     vscode.commands.registerCommand('ipfs.copyCid', async (uri: vscode.Uri) => {
