@@ -1,4 +1,5 @@
 import { IPFSHTTPClient, create } from 'ipfs-http-client';
+import type { StatResult } from 'ipfs-core-types/files';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { fetch, getDomain } from './deps';
@@ -13,6 +14,7 @@ const dnsLinkProviders: Record<
 
 export interface Entry extends vscode.FileStat {
   name: string;
+  ipfsStat: StatResult;
 }
 
 export interface IPFSProviderConfig {
@@ -59,6 +61,10 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     this.ipfs = null;
   }
 
+  isNotFoundError(err: any) {
+    return err?.code === 'ERR_NOT_FOUND' || err?.message === 'file does not exist';
+  }
+
   async importFileOrDirectory(ipfsPath?: string) {
     if (ipfsPath) ipfsPath = await this.ipfs.resolve(ipfsPath);
     if (!ipfsPath) return;
@@ -84,11 +90,12 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     return dirname;
   }
 
-  async stat(uri: vscode.Uri) {
+  private async internalStat(uri: vscode.Uri) {
     this.log('stat ' + uri);
     const filePath = uri.path;
     try {
       const stat = await this.ipfs.files.stat(filePath);
+      this.log('stat result: ' + JSON.stringify(stat));
       return {
         type:
           stat.type === 'directory'
@@ -98,14 +105,19 @@ export class IPFSProvider implements vscode.FileSystemProvider {
         mtime: Date.now(),
         size: stat.size,
         name: Utils.basename(uri),
+        ipfsStat: stat,
       };
     } catch (err) {
       this.log(`Error ${err.name}/${err.code}/${err.message}`);
-      if (err?.code === 'ERR_NOT_FOUND' || err?.message === 'file does not exist') {
+      if (this.isNotFoundError(err)) {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
       throw err;
     }
+  }
+
+  stat(uri: vscode.Uri) {
+    return this.internalStat(uri);
   }
 
   async getCid(uri: vscode.Uri) {
@@ -143,7 +155,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
       const buffer = await arrayFromAsync(this.ipfs.files.read(fullPath));
       return this.mergeUint8Array(buffer);
     } catch (err) {
-      if (err?.code === 'ERR_NOT_FOUND') {
+      if (this.isNotFoundError(err)) {
         throw vscode.FileSystemError.FileNotFound();
       }
       throw err;
@@ -156,7 +168,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     options: { create: boolean; overwrite: boolean }
   ) {
     const fullPath = uri.path;
-    const entry = await this.stat(uri).catch<Entry>(noop);
+    const entry = await this.internalStat(uri).catch<Entry>(noop);
     if (entry?.type === vscode.FileType.Directory) {
       throw vscode.FileSystemError.FileIsADirectory(uri);
     }
@@ -171,7 +183,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
         truncate: true,
       });
     } catch (err) {
-      if (err?.code === 'ERR_NO_EXIST') {
+      if (this.isNotFoundError(err)) {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
     }
