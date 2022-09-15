@@ -37,14 +37,7 @@ export async function activate(context: vscode.ExtensionContext) {
       });
       if (!ipfsPath) return;
       const dirname = await ipfsProvider.importFileOrDirectory(ipfsPath);
-      vscode.workspace.updateWorkspaceFolders(
-        0,
-        vscode.workspace.workspaceFolders?.length ?? 0,
-        {
-          uri: vscode.Uri.parse(`ipfs:${dirname}`),
-          name: `IPFS - ${dirname}`,
-        }
-      );
+      vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.parse(`ipfs:${dirname}`));
     })
   );
   context.subscriptions.push(
@@ -67,14 +60,7 @@ export async function activate(context: vscode.ExtensionContext) {
         },
       });
       if (!dirname) return;
-      vscode.workspace.updateWorkspaceFolders(
-        0,
-        vscode.workspace.workspaceFolders?.length ?? 0,
-        {
-          uri: vscode.Uri.parse(`ipfs:${dirname}`),
-          name: `IPFS - ${dirname}`,
-        }
-      );
+      vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.parse(`ipfs:${dirname}`));
     }))
   );
   context.subscriptions.push(
