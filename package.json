@@ -66,23 +66,19 @@
       },
       {
         "command": "ipfs.uploadToWeb3Storage",
-        "title": "Upload to Web3.Storage",
-        "category": "IPFS"
+        "title": "Upload to Web3.Storage"
       },
       {
         "command": "ipfs.publish",
-        "title": "Publish this node",
-        "category": "IPFS"
+        "title": "Publish this node"
       },
       {
         "command": "ipfs.publishUnder",
-        "title": "Publish all under this node",
-        "category": "IPFS"
+        "title": "Publish all under this node"
       },
       {
         "command": "ipfs.uploadAndPublishUnder",
-        "title": "Upload and publish all",
-        "category": "IPFS"
+        "title": "Upload and publish all"
       }
     ],
     "menus": {
@@ -92,6 +88,30 @@
         },
         {
           "command": "ipfs.import"
+        },
+        {
+          "command": "ipfs.copyCid",
+          "when": "resourceScheme == ipfs"
+        },
+        {
+          "command": "ipfs.copyUrl",
+          "when": "resourceScheme == ipfs"
+        },
+        {
+          "command": "ipfs.uploadToWeb3Storage",
+          "when": "false"
+        },
+        {
+          "command": "ipfs.publish",
+          "when": "false"
+        },
+        {
+          "command": "ipfs.publishUnder",
+          "when": "false"
+        },
+        {
+          "command": "ipfs.uploadAndPublishUnder",
+          "when": "false"
         }
       ],
       "explorer/context": [
