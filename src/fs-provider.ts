@@ -74,20 +74,21 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     const dateStr = new Date().toISOString().split('T')[0];
     let idx = 0;
     const prefix = '/vscode-imports/';
-    let dirname = prefix + dateStr;
-    while (await this.ipfs.files.stat(dirname).catch(noop)) {
+    let dest = prefix + dateStr;
+    while (await this.ipfs.files.stat(dest).catch(noop)) {
       idx += 1;
-      dirname = `${prefix}${dateStr}_${idx}`;
+      dest = `${prefix}${dateStr}_${idx}`;
     }
     if (stat.type === 'directory') {
       this.log('Found directory');
-      await this.ipfs.files.cp(ipfsPath, dirname, { cidVersion: 1 });
+      await this.ipfs.files.mkdir(prefix, { parents: true, cidVersion: 1 });
+      await this.ipfs.files.cp(ipfsPath, dest, { cidVersion: 1 });
     } else {
       this.log('Found file');
-      await this.ipfs.files.mkdir(dirname, { parents: true, cidVersion: 1 });
-      await this.ipfs.files.cp(ipfsPath, `${dirname}/file`, { cidVersion: 1 });
+      await this.ipfs.files.mkdir(dest, { parents: true, cidVersion: 1 });
+      await this.ipfs.files.cp(ipfsPath, `${dest}/file`, { cidVersion: 1 });
     }
-    return dirname;
+    return dest;
   }
 
   private async internalStat(uri: vscode.Uri) {
