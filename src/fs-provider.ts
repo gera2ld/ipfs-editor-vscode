@@ -1,5 +1,6 @@
 import { IPFSHTTPClient, create } from 'ipfs-http-client';
-import type { StatResult } from 'ipfs-core-types/files';
+import type { StatResult } from 'ipfs-core-types/dist/src/files';
+import type { CIDVersion } from 'multiformats/cid'
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { fetch, getDomain } from './deps';
@@ -33,6 +34,8 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   ipfs: IPFSHTTPClient;
 
   private config: IPFSProviderConfig;
+
+  ipfsOptions: { cidVersion: CIDVersion } = { cidVersion: 1 };
 
   constructor(providerOpts?: {
     endpoint?: string;
@@ -81,12 +84,12 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     }
     if (stat.type === 'directory') {
       this.log('Found directory');
-      await this.ipfs.files.mkdir(prefix, { parents: true, cidVersion: 1 });
-      await this.ipfs.files.cp(ipfsPath, dest, { cidVersion: 1 });
+      await this.ipfs.files.mkdir(prefix, { ...this.ipfsOptions, parents: true });
+      await this.ipfs.files.cp(ipfsPath, dest, this.ipfsOptions);
     } else {
       this.log('Found file');
-      await this.ipfs.files.mkdir(dest, { parents: true, cidVersion: 1 });
-      await this.ipfs.files.cp(ipfsPath, `${dest}/file`, { cidVersion: 1 });
+      await this.ipfs.files.mkdir(dest, { ...this.ipfsOptions, parents: true });
+      await this.ipfs.files.cp(ipfsPath, `${dest}/file`, this.ipfsOptions);
     }
     return dest;
   }
@@ -178,15 +181,18 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     }
     this.log('writeFile ' + fullPath);
     try {
-      await this.ipfs.files.write(fullPath, content, {
-        cidVersion: 1,
+      const res = await this.ipfs.files.write(fullPath, content, {
+        ...this.ipfsOptions,
         create: options.create,
         truncate: true,
       });
+      this.log('write success: ' + res);
     } catch (err) {
+      this.log('write error: ' + err);
       if (this.isNotFoundError(err)) {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
+      throw err;
     }
     if (!entry) {
       this._fireSoon({ type: vscode.FileChangeType.Created, uri });
@@ -204,7 +210,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
     }
     const oldPath = oldUri.path;
     const newPath = newUri.path;
-    await this.ipfs.files.mv(oldPath, newPath, { cidVersion: 1 });
+    await this.ipfs.files.mv(oldPath, newPath, this.ipfsOptions);
 
     this._fireSoon(
       { type: vscode.FileChangeType.Deleted, uri: oldUri },
@@ -225,7 +231,7 @@ export class IPFSProvider implements vscode.FileSystemProvider {
   async createDirectory(uri: vscode.Uri) {
     const dirname = Utils.dirname(uri);
     const fullPath = uri.path;
-    await this.ipfs.files.mkdir(fullPath, { cidVersion: 1 });
+    await this.ipfs.files.mkdir(fullPath, this.ipfsOptions);
     this._fireSoon(
       { type: vscode.FileChangeType.Changed, uri: dirname },
       { type: vscode.FileChangeType.Created, uri }
